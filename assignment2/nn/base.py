@@ -182,8 +182,13 @@ class SparseDeltas(object):
         # assert(type(pv) == PackedVector)
 
         for n in self._names:
+            #print n
             ud = self[n] # update dict
+            #print ud
             for idx, v in ud: # idx, vec pairs
+                #print idx
+                #print v
+                #print pv[n][idx]
                 pv[n][idx] += alpha*v # in-place update
 
 
@@ -277,6 +282,7 @@ class NNBase(object):
         Generic minibatch SGD
         """
         self._reset_grad_acc()
+
         for i in range(len(y)):
             self._acc_grads(X[i], y[i])
         self._apply_grad_acc(alpha)
@@ -322,6 +328,7 @@ class NNBase(object):
             if verbose and (grad_delta > tol): # DEBUG
                 print >> outfd, "Numerical: \n" + str(grad_approx)
                 print >> outfd, "Computed:  \n" + str(grad_computed)
+                break
 
         ##
         # Loop over sparse parameters
@@ -380,6 +387,7 @@ class NNBase(object):
                 if verbose and (grad_delta > tol): # DEBUG
                     print >> outfd, "Numerical: \n" + str(grad_approx)
                     print >> outfd, "Computed:  \n" + str(grad_computed)
+                    break
 
         self._reset_grad_acc()
 
