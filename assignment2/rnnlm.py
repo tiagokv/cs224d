@@ -5,9 +5,9 @@ import sys
 
 # Import NN utils
 from nn.base import NNBase
-from nn.math import softmax, sigmoid
+from nn.math import softmax, sigmoid, make_onehot
 from nn.math import MultinomialSampler, multinomial_sample
-from misc import random_weight_matrix
+from misc import random_weight_matrix, sigmoid_grad, softmax
 
 
 class RNNLM(NNBase):
@@ -43,12 +43,27 @@ class RNNLM(NNBase):
 
         #### YOUR CODE HERE ####
 
-
         # Initialize word vectors
         # either copy the passed L0 and U0 (and initialize in your notebook)
         # or initialize with gaussian noise here
 
+        if U0 is None:
+            self.params.U = random.normal(0,0.1,*param_dims["U"])
+        else:
+            self.params.U = U0.copy()
+
+        if L0 is None:
+            self.sparams.L = random.normal(0,0.1,*param_dims["L"])
+        else:
+            self.sparams.L = L0.copy()
+
         # Initialize H matrix, as with W and U in part 1
+
+        self.params.H = random_weight_matrix(*param_dims["H"])
+
+        self.rseed = rseed
+        self.bptt  = bptt
+        self.alpha = alpha
 
         #### END YOUR CODE ####
 
@@ -94,15 +109,43 @@ class RNNLM(NNBase):
         ps = zeros((ns, self.vdim))
 
         #### YOUR CODE HERE ####
-
         ##
         # Forward propagation
+        for step in xrange(0,ns):
+            # print "hs[step-1].shape %s" % (hs[step-1].shape,)
+            # print "self.params.H.shape %s" % (self.params.H.shape,)
+            # print "self.sparams.L.shape %s" % (self.sparams.L.shape,)
+            # print "self.sparams.L[xs[step]].shape %s" % (self.sparams.L[xs[step]].shape,)
+            a1 = self.params.H.dot(hs[step-1].T).T + self.sparams.L[xs[step]]
+            a1 = expand_dims(a1,axis=0)
+            h  = sigmoid( a1 )
+            a2 = self.params.U.dot(h.T).T
+            # print "h.flatten().shape %s" % (h.flatten().shape,)
+            # print "a2.shape %s" % (a2.shape,)
+            # print "self.params.U.shape %s" % (self.params.U.shape,)
+            y_hat = softmax( a2 )
 
+            # print "y_hat.shape %s" % (y_hat.shape,)
+
+            hs[step] = h.flatten()
+            ps[step] = y_hat
 
         ##
         # Backward propagation through time
+        for step in xrange(ns-1,-1,-1):
+            t = zeros( ps[step].shape )
+            t[ys[step]] = 1
+            delta_out = ps[step] - t
+            self.grads.U += outer(hs[step],delta_out).T
 
+            delta_hidden = delta_out.dot(self.params.U) * sigmoid_grad( hs[step] )
 
+            for step_bp in xrange(step,step-self.bptt-1,-1):
+                if step_bp < 0:
+                    break
+                self.grads.H  += outer(delta_hidden,hs[step_bp-1])
+                self.sgrads.L[xs[step_bp]] = delta_hidden
+                delta_hidden = delta_hidden.dot(self.params.H) * sigmoid_grad( hs[step_bp-1] )                
 
         #### END YOUR CODE ####
 
@@ -136,9 +179,27 @@ class RNNLM(NNBase):
         and return the sum of the point losses.
         """
 
+        ns = len(xs)
+
+        h_ant = zeros((1, self.hdim))
+
         J = 0
         #### YOUR CODE HERE ####
+        for step in xrange(0,ns):
+            # print "hs[step-1].shape %s" % (hs[step-1].shape,)
+            # print "self.params.H.shape %s" % (self.params.H.shape,)
+            # print "self.sparams.L.shape %s" % (self.sparams.L.shape,)
+            # print "self.sparams.L[xs[step]].shape %s" % (self.sparams.L[xs[step]].shape,)
+            a1 = self.params.H.dot(h_ant.T).T + self.sparams.L[xs[step]]
+            h  = sigmoid( a1 )
+            a2 = self.params.U.dot(h.T).T
+            # print "h.shape %s" % (h.shape,)
+            # print "a2.shape %s" % (a2.shape,)
+            # print "self.params.U.shape %s" % (self.params.U.shape,)
+            y_hat = softmax( a2 )
+            h_ant = h
 
+            J -= log( y_hat[:,ys[step]] )
 
         #### END YOUR CODE ####
         return J
@@ -197,7 +258,22 @@ class RNNLM(NNBase):
         ys = [init] # emitted sequence
 
         #### YOUR CODE HERE ####
+        h_ant = zeros((1, self.hdim))
 
+        for step in xrange(maxlen):
+            a1 = self.params.H.dot(h_ant.T).T + self.sparams.L[ys[step]]
+            h  = sigmoid( a1 )
+            a2 = self.params.U.dot(h.T).T
+            # print "h.shape %s" % (h.shape,)
+            # print "a2.shape %s" % (a2.shape,)
+            # print "self.params.U.shape %s" % (self.params.U.shape,)
+            y_hat = softmax( a2 )
+            h_ant = h
+            ys.append( multinomial_sample(y_hat) )
+            J -= log( y_hat[:,ys[step]] )
+
+
+        ys.append(end)
 
         #### YOUR CODE HERE ####
         return ys, J
