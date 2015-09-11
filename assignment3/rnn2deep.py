@@ -45,14 +45,14 @@ class RNN2:
         # Gradients
         self.dW1 = np.empty(self.W1.shape)
         self.db1 = np.empty((self.wvecDim))
-        
+
         self.dW2 = np.empty(self.W2.shape)
         self.db2 = np.empty((self.middleDim))
 
         self.dWs = np.empty(self.Ws.shape)
         self.dbs = np.empty((self.outputDim))
 
-    def costAndGrad(self,mbdata,test=False): 
+    def costAndGrad(self,mbdata,test=False):
         """
         Each datum in the minibatch is a tree.
         Forward prop each tree.
@@ -63,7 +63,7 @@ class RNN2:
            Gradient w.r.t. L in sparse form.
 
         or if in test mode
-        Returns 
+        Returns
            cost, correctArray, guessArray, total
         """
         cost = 0.0
@@ -75,7 +75,7 @@ class RNN2:
         # Zero gradients
         self.dW1[:] = 0
         self.db1[:] = 0
-        
+
         self.dW2[:] = 0
         self.db2[:] = 0
 
@@ -84,11 +84,11 @@ class RNN2:
         self.dL = collections.defaultdict(self.defaultVec)
 
         # Forward prop each tree in minibatch
-        for tree in mbdata: 
+        for tree in mbdata:
             c,tot = self.forwardProp(tree.root,correct,guess)
             cost += c
             total += tot
-            
+
         if test:
             return (1./len(mbdata))*cost,correct, guess, total
 
@@ -100,8 +100,8 @@ class RNN2:
         scale = (1./self.mbSize)
         for v in self.dL.itervalues():
             v *=scale
-        
-        # Add L2 Regularization 
+
+        # Add L2 Regularization
         cost += (self.rho/2)*np.sum(self.W1**2)
         cost += (self.rho/2)*np.sum(self.W2**2)
         cost += (self.rho/2)*np.sum(self.Ws**2)
@@ -113,7 +113,40 @@ class RNN2:
     def forwardProp(self,node, correct=[], guess=[]):
         cost  =  total = 0.0
         # this is exactly the same setup as forwardProp in rnn.py
-        
+
+        #import pdb
+        #pdb.set_trace()
+
+        cost_right = 0
+        cost_left  = 0
+
+        if node.left != None:
+            cost_left, _ = self.forwardProp(node.left)
+
+        if node.right != None:
+            cost_right, _ = self.forwardProp(node.right)
+
+        cost = cost_right + cost_left
+
+        if node.isLeaf:
+            node.hActs1 = self.L[:,node.word]
+        else:
+            node.hActs1 = np.dot(self.W1, np.hstack([node.left.hActs1,node.right.hActs1])) + self.b1
+            node.hActs1[node.hActs1 < 0] = 0
+
+        node.hActs2 = np.dot(self.W2,node.hActs1) + self.b2
+        node.hActs2[node.hActs2 < 0] = 0
+
+        node.probs = np.dot(self.Ws,node.hActs2) + self.bs
+        node.probs -= np.max(node.probs)
+        node.probs = np.exp(node.probs)
+        node.probs = node.probs / np.sum(node.probs)
+
+        cost -= np.log( node.probs[node.label] )
+
+        correct.append(node.label)
+        guess.append(np.argmax(node.probs))
+        node.fprop = True
 
         return cost, total + 1
 
@@ -123,10 +156,38 @@ class RNN2:
         node.fprop = False
 
         # this is exactly the same setup as backProp in rnn.py
-        
-        
 
-        
+        deltas = node.probs
+        deltas[node.label] -= 1.0
+        self.dWs += np.outer(deltas,node.hActs2)
+        self.dbs += deltas
+        deltas = np.dot(self.Ws.T,deltas)
+        deltas *= (node.hActs2 != 0)
+
+        # import pdb
+        # pdb.set_trace()
+
+        self.dW2 += np.outer(deltas,node.hActs1)
+        self.db2 += deltas
+
+        deltas = np.dot(self.W2.T,deltas)
+
+        if error is not None:
+            deltas += error
+
+        deltas *= (node.hActs1 != 0)
+
+        if node.isLeaf:
+            self.dL[node.word] += deltas
+            return
+        else:
+            self.dW1 += np.outer(deltas,np.hstack([node.left.hActs1,node.right.hActs1]))
+            self.db1 += deltas
+            deltas  = np.dot(self.W1.T,deltas)
+            self.backProp(node.left, deltas[:self.wvecDim])
+            self.backProp(node.right,deltas[self.wvecDim:])
+
+
     def updateParams(self,scale,update,log=False):
         """
         Updates parameters as
@@ -164,7 +225,7 @@ class RNN2:
         print "Checking dWs, dW1 and dW2..."
         for W,dW in zip(self.stack[1:],grad[1:]):
             W = W[...,None] # add dimension since bias is flat
-            dW = dW[...,None] 
+            dW = dW[...,None]
             for i in xrange(W.shape[0]):
                 for j in xrange(W.shape[1]):
                     W[i,j] += epsilon
@@ -213,12 +274,6 @@ if __name__ == '__main__':
     rnn.initParams()
 
     mbData = train[:4]
-    
+
     print "Numerical gradient check..."
     rnn.check_grad(mbData)
-
-
-
-
-
-
