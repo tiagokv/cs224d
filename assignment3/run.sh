@@ -16,8 +16,12 @@ middleDim=25
 
 model="RNN" #either RNN, RNN2, RNN3, RNTN, or DCNN
 
+#missing 5 on purpose, already ran
+wvecDimBatch=("15" "25" "35" "45")
 
-######################################################## 
+for wvecDim in "${wvecDimBatch[@]}"
+do
+########################################################
 # Probably a good idea to let items below here be
 ########################################################
 if [ "$model" == "RNN2" ]; then
@@ -31,5 +35,5 @@ echo $outfile
 
 
 python runNNet.py --step $step --epochs $epochs --outFile $outfile \
-                --middleDim $middleDim --outputDim 5 --wvecDim $wvecDim --model $model 
-
+                --middleDim $middleDim --outputDim 5 --wvecDim $wvecDim --model $model
+done

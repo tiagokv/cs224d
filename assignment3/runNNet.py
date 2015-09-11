@@ -12,9 +12,10 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import pdb
+import os
+from sklearn.metrics import confusion_matrix
 
-
-# This is the main training function of the codebase. You are intended to run this function via command line 
+# This is the main training function of the codebase. You are intended to run this function via command line
 # or by ./run.sh
 
 # You should update run.sh accordingly before you run it!
@@ -41,13 +42,16 @@ def run(args=None):
     parser.add_option("--outputDim",dest="outputDim",type="int",default=5)
     parser.add_option("--wvecDim",dest="wvecDim",type="int",default=30)
 
+    # By @tiagokv, just to ease the first assignment test
+    parser.add_option("--wvecDimBatch",dest="wvecDimBatch",type="string",default="")
+
     # for DCNN only
     parser.add_option("--ktop",dest="ktop",type="int",default=5)
     parser.add_option("--m1",dest="m1",type="int",default=10)
     parser.add_option("--m2",dest="m2",type="int",default=7)
     parser.add_option("--n1",dest="n1",type="int",default=6)
     parser.add_option("--n2",dest="n2",type="int",default=12)
-    
+
     parser.add_option("--outFile",dest="outFile",type="string",
         default="models/test.bin")
     parser.add_option("--inFile",dest="inFile",type="string",
@@ -66,7 +70,7 @@ def run(args=None):
     if opts.test:
         test(opts.inFile,opts.data,opts.model)
         return
-    
+
     print "Loading data..."
     train_accuracies = []
     dev_accuracies = []
@@ -87,7 +91,7 @@ def run(args=None):
         trees = cnn.tree2matrix(trees)
     else:
         raise '%s is not a valid neural network so far only RNTN, RNN, RNN2, RNN3, and DCNN'%opts.model
-    
+
     nn.initParams()
 
     sgd = optimizer.SGD(nn,alpha=opts.step,minibatch=opts.minibatch,
@@ -120,11 +124,24 @@ def run(args=None):
 
 
     if evaluate_accuracy_while_training:
-        pdb.set_trace()
-        print train_accuracies
-        print dev_accuracies
-        # TODO:
-        # Plot train/dev_accuracies here?
+        #pdb.set_trace()
+
+        #Lets set up the plot
+        plt.title('Accuracy in set per epochs')
+        plt.plot(range(opts.epochs),train_accuracies,label='train')
+        plt.plot(range(opts.epochs),dev_accuracies,label='dev')
+
+        with open('dev_accu','a') as fid:
+            fid.write(str(opts.wvecDim) + ',' + str(dev_accuracies[-1]) + ';')
+
+        plt.axis([0,100,0,opts.epochs])
+        plt.xlabel('epochs')
+        plt.ylabel('accuracy')
+        plt.legend(loc=2, borderaxespad=0.)
+        plt.savefig('plot_accuracy.png')
+
+        print 'image saved at %s' % os.getcwd()
+
 
 def test(netFile,dataSet, model='RNN', trees=None):
     if trees==None:
@@ -134,7 +151,7 @@ def test(netFile,dataSet, model='RNN', trees=None):
     with open(netFile,'r') as fid:
         opts = pickle.load(fid)
         _ = pickle.load(fid)
-        
+
         if (model=='RNTN'):
             nn = RNTN(opts.wvecDim,opts.outputDim,opts.numWords,opts.minibatch)
         elif(model=='RNN'):
@@ -148,7 +165,7 @@ def test(netFile,dataSet, model='RNN', trees=None):
             trees = cnn.tree2matrix(trees)
         else:
             raise '%s is not a valid neural network so far only RNTN, RNN, RNN2, RNN3, and DCNN'%opts.model
-        
+
         nn.initParams()
         nn.fromFile(fid)
 
@@ -156,14 +173,12 @@ def test(netFile,dataSet, model='RNN', trees=None):
 
     cost,correct, guess, total = nn.costAndGrad(trees,test=True)
     correct_sum = 0
-    for i in xrange(0,len(correct)):        
+    for i in xrange(0,len(correct)):
         correct_sum+=(guess[i]==correct[i])
-    
-    # TODO
-    # Plot the confusion matrix?
 
-    
-    
+    cm = confusion_matrix(correct, guess)
+    makeconf(cm)
+
     print "Cost %f, Acc %f"%(cost,correct_sum/float(total))
     return correct_sum/float(total)
 
@@ -183,7 +198,7 @@ def makeconf(conf_arr):
     plt.clf()
     ax = fig.add_subplot(111)
     ax.set_aspect(1)
-    res = ax.imshow(np.array(norm_conf), cmap=plt.cm.jet, 
+    res = ax.imshow(np.array(norm_conf), cmap=plt.cm.jet,
                     interpolation='nearest')
 
     width = len(conf_arr)
@@ -191,7 +206,7 @@ def makeconf(conf_arr):
 
     for x in xrange(width):
         for y in xrange(height):
-            ax.annotate(str(conf_arr[x][y]), xy=(y, x), 
+            ax.annotate(str(conf_arr[x][y]), xy=(y, x),
                         horizontalalignment='center',
                         verticalalignment='center')
 
@@ -200,12 +215,8 @@ def makeconf(conf_arr):
     plt.xticks(range(width), indexs[:width])
     plt.yticks(range(height), indexs[:height])
     # you can save the figure here with:
-    # plt.savefig("pathname/image.png")
-
-    plt.show()
+    plt.savefig("confusion_matrix.png")
 
 
 if __name__=='__main__':
     run()
-
-
