@@ -4,7 +4,7 @@ import collections
 # This is a simple Recursive Neural Netowrk with one ReLU Layer and a softmax layer
 # TODO: You must update the forward and backward propogation functions of this file.
 
-# You can run this file via 'python rnn.py' to perform a gradient check! 
+# You can run this file via 'python rnn.py' to perform a gradient check!
 
 # tip: insert pdb.set_trace() in places where you are unsure whats going on
 
@@ -40,7 +40,7 @@ class RNN:
         self.dWs = np.empty(self.Ws.shape)
         self.dbs = np.empty((self.outputDim))
 
-    def costAndGrad(self,mbdata,test=False): 
+    def costAndGrad(self,mbdata,test=False):
         """
         Each datum in the minibatch is a tree.
         Forward prop each tree.
@@ -51,9 +51,9 @@ class RNN:
            Gradient w.r.t. L in sparse form.
 
         or if in test mode
-        Returns 
+        Returns
            cost, correctArray, guessArray, total
-           
+
         """
         cost = 0.0
         correct = []
@@ -70,7 +70,7 @@ class RNN:
         self.dL = collections.defaultdict(self.defaultVec)
 
         # Forward prop each tree in minibatch
-        for tree in mbdata: 
+        for tree in mbdata:
             c,tot = self.forwardProp(tree.root,correct,guess)
             cost += c
             total += tot
@@ -85,8 +85,8 @@ class RNN:
         scale = (1./self.mbSize)
         for v in self.dL.itervalues():
             v *=scale
-        
-        # Add L2 Regularization 
+
+        # Add L2 Regularization
         cost += (self.rho/2)*np.sum(self.W**2)
         cost += (self.rho/2)*np.sum(self.Ws**2)
 
@@ -106,35 +106,38 @@ class RNN:
 
         #import pdb
         #pdb.set_trace()
-        
+
         cost_right = 0
         cost_left  = 0
-        
-        if node.left != None:
-            cost_left, _ = self.forwardProp(node.left)
-        
-        if node.right != None:
-            cost_right, _ = self.forwardProp(node.right)
-        
-        cost = cost_right + cost_left
-        
-        if node.isLeaf: 
+        tot_left   = 0
+        tot_right  = 0
+
+        if node.left != None and node.left.fprop == False:
+            cost_left, tot_left = self.forwardProp(node.left,correct,guess)
+
+        if node.right != None and node.right.fprop == False:
+            cost_right, tot_right = self.forwardProp(node.right,correct,guess)
+
+        cost  = cost_right + cost_left
+        total = tot_left + tot_right
+
+        if node.isLeaf:
             node.hAct1s = self.L[:,node.word]
         else:
             node.hAct1s = np.dot(self.W, np.hstack([node.left.hAct1s,node.right.hAct1s])) + self.b
             node.hAct1s[node.hAct1s < 0] = 0
-        
+
         node.probs = np.dot(self.Ws,node.hAct1s) + self.bs
         node.probs -= np.max(node.probs)
         node.probs = np.exp(node.probs)
         node.probs = node.probs / np.sum(node.probs)
-        
+
         cost -= np.log( node.probs[node.label] )
-        
+
         correct.append(node.label)
         guess.append(np.argmax(node.probs))
         node.fprop = True
-        
+
         return cost, total + 1
 
 
@@ -156,12 +159,12 @@ class RNN:
         self.dWs += np.outer(deltas,node.hAct1s)
         self.dbs += deltas
         deltas = np.dot(self.Ws.T,deltas)
-        
+
         if error is not None:
             deltas += error
-            
+
         deltas *= (node.hAct1s != 0)
-        
+
         if node.isLeaf:
             self.dL[node.word] += deltas
             return
@@ -171,7 +174,7 @@ class RNN:
             deltas  = np.dot(self.W.T,deltas)
             self.backProp(node.left, deltas[:self.wvecDim])
             self.backProp(node.right,deltas[self.wvecDim:])
-        
+
     def updateParams(self,scale,update,log=False):
         """
         Updates parameters as
@@ -209,7 +212,7 @@ class RNN:
         print "Checking dW..."
         for W,dW in zip(self.stack[1:],grad[1:]):
             W = W[...,None] # add dimension since bias is flat
-            dW = dW[...,None] 
+            dW = dW[...,None]
             for i in xrange(W.shape[0]):
                 for j in xrange(W.shape[1]):
                     W[i,j] += epsilon
@@ -219,7 +222,7 @@ class RNN:
                     err = np.abs(dW[i,j] - numGrad)
                     err1+=err
                     count+=1
-        
+
         if 0.001 > err1/count:
             print "Grad Check Passed for dW"
         else:
@@ -258,12 +261,6 @@ if __name__ == '__main__':
     rnn.initParams()
 
     mbData = train[:4]
-    
+
     print "Numerical gradient check..."
     rnn.check_grad(mbData)
-
-
-
-
-
-

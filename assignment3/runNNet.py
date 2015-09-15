@@ -97,6 +97,9 @@ def run(args=None):
     sgd = optimizer.SGD(nn,alpha=opts.step,minibatch=opts.minibatch,
         optimizer=opts.optimizer)
 
+    # assuring folder for plots exists
+    if( os.path.isdir('plots') == False ): os.makedirs('test')
+    if( os.path.isdir('plots/' + opts.model ) == False ): os.makedirs('plots/' + opts.model)
 
     dev_trees = tr.loadTrees("dev")
     for e in range(opts.epochs):
@@ -126,19 +129,22 @@ def run(args=None):
     if evaluate_accuracy_while_training:
         #pdb.set_trace()
 
+        plt.figure()
         #Lets set up the plot
         plt.title('Accuracy in set per epochs')
         plt.plot(range(opts.epochs),train_accuracies,label='train')
         plt.plot(range(opts.epochs),dev_accuracies,label='dev')
 
-        with open('dev_accu','a') as fid:
-            fid.write(str(opts.wvecDim) + ',' + str(dev_accuracies[-1]) + ';')
+        with open('dev_accu' + opts.model,'a') as fid:
+            fid.write(str(opts.wvecDim) + ',' + str(opts.middleDim) + ',' + str(dev_accuracies[-1]) + ';')
 
-        plt.axis([0,100,0,opts.epochs])
+        #plt.axis([0,opts.epochs,0,1])
         plt.xlabel('epochs')
         plt.ylabel('accuracy')
         plt.legend(loc=2, borderaxespad=0.)
-        plt.savefig('plot_accuracy.png')
+
+        #always save with middleDim, even if it's a one-layer RNN
+        plt.savefig('plots/' + opts.model + '/accuracy_wvec_' + str(opts.wvecDim) + '_middleDim_' + str(opts.middleDim) + ' .png')
 
         print 'image saved at %s' % os.getcwd()
 
@@ -148,6 +154,7 @@ def test(netFile,dataSet, model='RNN', trees=None):
         trees = tr.loadTrees(dataSet)
     assert netFile is not None, "Must give model to test"
     print "Testing netFile %s"%netFile
+    opts = None
     with open(netFile,'r') as fid:
         opts = pickle.load(fid)
         _ = pickle.load(fid)
@@ -172,12 +179,14 @@ def test(netFile,dataSet, model='RNN', trees=None):
     print "Testing %s..."%model
 
     cost,correct, guess, total = nn.costAndGrad(trees,test=True)
+
     correct_sum = 0
     for i in xrange(0,len(correct)):
         correct_sum+=(guess[i]==correct[i])
 
     cm = confusion_matrix(correct, guess)
     makeconf(cm)
+    plt.savefig("plots/" + opts.model + "/confusion_matrix_" + model + "wvecDim_" + str(opts.wvecDim) + "_middleDim_" + str(opts.middleDim) + ".png")
 
     print "Cost %f, Acc %f"%(cost,correct_sum/float(total))
     return correct_sum/float(total)
@@ -215,7 +224,6 @@ def makeconf(conf_arr):
     plt.xticks(range(width), indexs[:width])
     plt.yticks(range(height), indexs[:height])
     # you can save the figure here with:
-    plt.savefig("confusion_matrix.png")
 
 
 if __name__=='__main__':

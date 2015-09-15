@@ -119,14 +119,17 @@ class RNN2:
 
         cost_right = 0
         cost_left  = 0
+        tot_left   = 0
+        tot_right  = 0
 
-        if node.left != None:
-            cost_left, _ = self.forwardProp(node.left)
+        if node.left != None and node.left.fprop == False:
+            cost_left, tot_left = self.forwardProp(node.left,correct,guess)
 
-        if node.right != None:
-            cost_right, _ = self.forwardProp(node.right)
+        if node.right != None and node.right.fprop == False:
+            cost_right, tot_right = self.forwardProp(node.right,correct,guess)
 
-        cost = cost_right + cost_left
+        cost  = cost_right + cost_left
+        total = tot_left + tot_right
 
         if node.isLeaf:
             node.hActs1 = self.L[:,node.word]
