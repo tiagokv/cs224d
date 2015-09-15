@@ -31,7 +31,7 @@ class RNN3:
         self.L = 0.01*np.random.randn(self.wvecDim,self.numWords)
 
         # Hidden activation weights for layer 1
-        self.W1 = 0.01*np.random.randn(self.wvecDim,2*self.wvecDim)
+        self.W1 = 0.01*np.random.randn(self.wvecDim,2*self.middleDim)
         #self.W1 = random_weight_matrix(self.wvecDim,2*self.wvecDim)
         self.b1 = np.zeros((self.wvecDim))
 
@@ -187,7 +187,7 @@ class RNN3:
             self.dL[node.word] += deltas
             return
         else:
-            self.dW1 += np.outer(deltas,np.hstack([node.left.hActs1,node.right.hActs1]))
+            self.dW1 += np.outer(deltas,np.hstack([node.left.hActs2,node.right.hActs2]))
             self.db1 += deltas
             deltas  = np.dot(self.W1.T,deltas)
             self.backProp(node.left, deltas[:self.middleDim])
@@ -228,7 +228,7 @@ class RNN3:
         err1 = 0.0
         count = 0.0
         count_stack = 0
-        print "Checking dWs, dW1 and dW2..."
+        print "Checking in the respective order dW1, db1, dW2, db2, dWs, dbs"
         for W,dW in zip(self.stack[1:],grad[1:]):
             W = W[...,None] # add dimension since bias is flat
             dW = dW[...,None]
